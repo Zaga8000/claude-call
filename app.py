@@ -12,7 +12,7 @@ app = Flask(__name__)
 CORS(app)
 
 
-BTC_API_URL = "http://127.0.0.1:5000/ticker/summary"
+BTC_API_URL = "http://172.31.31.165:5000/ticker/summary"
 
 
 def get_btc_summary():
@@ -106,7 +106,7 @@ Do not guarantee results.
 if __name__ == "__main__":
 
     app.run(
-        host="127.0.0.1",
+        host="0.0.0.0",
         port=8000,
         debug=True
     )
