@@ -86,6 +86,29 @@ and candle behavior, following this framework:
      where a stop would logically sit (beyond the retest/rejection
      extreme) and where invalidation of the idea would occur.
 
+Using the chronological BTC price data supplied below, mentally reconstruct
+what the price chart would look like.
+
+Do not claim that you can literally see a chart. Instead, infer the chart
+shape directly from the numerical price sequence.
+
+Analyze:
+
+1. Overall chart shape
+2. Higher highs / lower highs
+3. Higher lows / lower lows
+4. Trend direction
+5. Consolidation areas
+6. Support levels
+7. Resistance levels
+8. Breakout or breakdown structure
+9. Momentum changes
+10. Most likely movement during the requested timeframe
+
+The requested prediction timeframe is: 15 minutes.
+
+Use the supplied numerical market data as your primary evidence.
+
 Stay disciplined to this framework. If the data does not clearly
 support a directional read, it is more consistent with this
 methodology to say so than to force a confident answer.
