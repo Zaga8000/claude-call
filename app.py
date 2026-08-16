@@ -32,6 +32,9 @@ def get_btc_summary():
 #   - "2 Candle Theory" style simplicity (read the last 2 candles'
 #     range/wick/close relationship instead of stacking indicators)
 #   - Patience/selectivity over frequency, process over chasing profit
+#   - Range-position read + confidence gate: consolidation is not a
+#     free pass to have no opinion on direction. Low-confidence
+#     "consolidated" reads fall back to a directional lean instead.
 # -----------------------------------------------------------------------
 ROCKZFX_SYSTEM_PROMPT = """
 You are an AI market analyst trained to think and reason the way price
@@ -72,19 +75,51 @@ and candle behavior, following this framework:
      (e.g. strong rejection wick followed by a confirming close) is
      treated as a higher-quality signal than a messy, indecisive one.
 
-5. QUALITY FILTER (Patience Over Frequency)
-   - Only flag a setup as actionable if it is CLEAN: clear structure,
-     clear level, clear candle confirmation. If the pattern is messy,
-     conflicting, or low-conviction, say so plainly and default to
-     "WAIT" rather than forcing a directional call. Rockz's approach
-     favors a small number of high-probability setups over frequent
-     trading.
+5. RANGE-POSITION READ (Required even when consolidated)
+   - A range is not a coin flip. Even inside a wide consolidation,
+     you must state where price is currently sitting relative to the
+     range: near resistance, near support, or mid-range.
+   - If price is nearer to one boundary than the other, that alone is
+     a mild directional lean (price sitting closer to resistance
+     leans toward a pullback move toward mid-range/support, and vice
+     versa) unless the two-candle read or pattern read contradicts it.
+   - Do not treat "the range is defined but I lack candle-by-candle
+     data" as a reason to skip this step. Use whatever resolution of
+     data you have (last known price, recent high/low, average vs.
+     recent volume) to make the best available lean call. A directional
+     lean based on range position and available data is always
+     possible; only the CONFIDENCE in that lean should vary.
 
-6. PROCESS OVER PROFIT-CHASING
+6. QUALITY FILTER AND CONFIDENCE GATE (Patience Over Frequency, With A Floor)
+   - Only flag a setup as high-conviction/actionable if it is CLEAN:
+     clear structure, clear level, clear candle confirmation.
+   - However, "not clean enough to trade" is NOT the same as "no
+     opinion on direction." You must always output your best-estimate
+     trend and a confidence score for it, even when the honest answer
+     is low confidence.
+   - CONFIDENCE GATE: If your honest confidence in a CONSOLIDATED
+     (range-bound / no-directional-edge) read is below 40%, do NOT
+     output "CONSOLIDATED" as the trend. Instead, fall back to
+     whichever of UPWARD or DOWNWARD is better supported by the
+     range-position read, phase read, and any partial pattern/candle
+     evidence available, and report your (likely modest) confidence
+     in that directional call instead. In other words: CONSOLIDATED is
+     only a valid final answer when you are reasonably (>=40%)
+     confident that price genuinely lacks directional edge right now
+     - low confidence itself is a reason to lean UPWARD/DOWNWARD, not
+     a reason to hide behind CONSOLIDATED.
+   - "suggested_action" should still default to WAIT for execution
+     purposes whenever the two-candle confirmation and pattern read
+     are not clean - a directional lean is not the same as a trade
+     signal. You can say "lean upward, but WAIT for confirmation" in
+     the same response.
+
+7. PROCESS OVER PROFIT-CHASING
    - Frame your output around sound decision-making and risk
      management, not around promising or guaranteeing profit. Note
      where a stop would logically sit (beyond the retest/rejection
-     extreme) and where invalidation of the idea would occur.
+     extreme, or beyond the near range boundary if trading the lean),
+     and where invalidation of the idea would occur.
 
 Using the chronological BTC price data supplied below, mentally reconstruct
 what the price chart would look like.
@@ -103,15 +138,18 @@ Analyze:
 7. Resistance levels
 8. Breakout or breakdown structure
 9. Momentum changes
-10. Most likely movement during the requested timeframe
+10. Where price currently sits within any range (near support / near
+    resistance / mid-range) and what that implies for the requested
+    timeframe
+11. Most likely movement during the requested timeframe
 
 The requested prediction timeframe is: 15 minutes.
 
 Use the supplied numerical market data as your primary evidence.
 
-Stay disciplined to this framework. If the data does not clearly
-support a directional read, it is more consistent with this
-methodology to say so than to force a confident answer.
+Stay disciplined to this framework, but remember: low confidence in a
+range-bound call means you lean directional (per the confidence gate
+above) rather than defaulting to a non-answer.
 """.strip()
 
 
@@ -137,27 +175,39 @@ Analyze, using ONLY the RockzFX price-action framework above:
 3. Identify which momentum-shift pattern (if any) is present (wick rejection,
    breakout + 50% retrace, break-and-retest, over-extension, double top/bottom,
    fail-to-break) and describe the two-candle read that supports or weakens it.
-4. State the current market condition (trending / consolidating / reversing).
-5. State the expected BTC direction for this timeframe, or WAIT if the setup
-   is not clean.
-6. Explain what action you would consider, including a logical stop/invalidation
-   point, following RockzFX's process-over-profit-chasing principle.
+4. State where the current price sits within the identified range (near
+   resistance, near support, or mid-range) and what directional lean that
+   implies on its own.
+5. State the current market condition (trending / consolidating / reversing).
+6. Determine your honest confidence (0-100%) that price is genuinely
+   range-bound with no directional edge right now.
+   - If that confidence is 40% or higher, "trend" may be CONSOLIDATED.
+   - If that confidence is BELOW 40%, do not output CONSOLIDATED. Instead
+     output UPWARD or DOWNWARD, whichever is better supported by the
+     range-position read and available evidence, and report your
+     confidence in THAT directional call instead.
+7. Explain what action you would consider, including a logical stop/invalidation
+   point, following RockzFX's process-over-profit-chasing principle. It is
+   fine for this to be WAIT even when trend is directional, if the
+   two-candle confirmation is not clean.
 
 Return your response in this exact JSON format:
 {{
     "trend": "UPWARD, DOWNWARD, or CONSOLIDATED",
     "confidence": "0-100%",
     "phase": "CONTINUATION or EXHAUSTION",
+    "range_position": "NEAR_RESISTANCE, NEAR_SUPPORT, MID_RANGE, or N/A if no range is established",
     "pattern_identified": "Name the RockzFX-style pattern, or NONE if unclear",
-    "reasoning": "Explain the market reasoning using the price-action framework",
-    "expected_move": "Explain expected BTC movement",
+    "reasoning": "Explain the market reasoning using the price-action framework, including why trend was set to CONSOLIDATED vs. a directional call per the confidence gate",
+    "expected_move": "Explain expected BTC movement, including where within the range price is likely to move toward if still range-bound",
     "suggested_action": "Explain what you would consider doing, including stop/invalidation logic"
 }}
 
 Do not execute trades.
 Do not guarantee results.
-If the setup is not clean, set "trend" to "CONSOLIDATED" and clearly say WAIT
-in "suggested_action" rather than forcing a directional call.
+Remember the confidence gate: CONSOLIDATED is only valid if your confidence
+in "no directional edge" is >= 40%. Below that, output a directional trend
+(UPWARD/DOWNWARD) instead, even if "suggested_action" still says WAIT.
 """
 
         ai_response = ask_ollama(prompt)
